@@ -34,11 +34,10 @@
   .layer { position:absolute; object-fit:contain; pointer-events:none; -webkit-user-drag:none; }
   #stageMsg { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; text-align:center; padding:20px; color:#78716c; font-size:14px; pointer-events:none; }
 
-  #tabs { display:flex; gap:6px; align-items:center; }
-  .tab { flex:1; padding:9px 2px; border:1px solid var(--line); background:var(--card); border-radius:10px; font-size:13px; }
-  .tab small { opacity:.55; margin-left:2px; }
+  #tabs { display:flex; gap:4px; align-items:center; }
+  .tab { flex:1; min-width:0; padding:9px 0; border:1px solid var(--line); background:var(--card); border-radius:10px; font-size:12px; white-space:nowrap; }
   .tab.on { background:var(--accent); color:var(--bg); border-color:var(--accent); }
-  #del { color:var(--err); }
+  #del { color:var(--err); padding:8px 10px; font-size:13px; }
   #del[hidden] { display:none; }
 
   #strip { display:flex; gap:8px; overflow-x:auto; padding:2px 1px; scrollbar-width:none; }
@@ -101,7 +100,8 @@
 // optional: listede "hiçbiri" konumu da olur (index -1)
 const CATS = [
   { id: 'tshirt', name: 'T-shirt',  z: 3, pos: 'center top',    box: { l: 20, t: 14, w: 60, h: 36 } },
-  { id: 'jacket', name: 'Ceket',    z: 4, pos: 'center top',    box: { l: 12, t: 11, w: 76, h: 44 }, optional: true },
+  { id: 'sweat',  name: 'Kazak',    z: 4, pos: 'center top',    box: { l: 15, t: 12, w: 70, h: 41 }, optional: true }, // hoodie, sweatshirt, hırka
+  { id: 'jacket', name: 'Ceket',    z: 5, pos: 'center top',    box: { l: 10, t: 10, w: 80, h: 46 }, optional: true },
   { id: 'pants',  name: 'Pantolon', z: 2, pos: 'center top',    box: { l: 22, t: 44, w: 56, h: 40 } },
   { id: 'shoes',  name: 'Ayakkabı', z: 1, pos: 'center top',    box: { l: 20, t: 80, w: 60, h: 16 } },
 ];
@@ -246,7 +246,7 @@ const saveOutfit = safe(async () => {
 
 function applyOutfit(o) {
   for (const c of CATS) {
-    const id = o.parts[c.id];
+    const id = o.parts[c.id] ?? null; // eski kayıtlarda kazak alanı yok
     if (id === null) { index[c.id] = -1; continue; }
     const i = items[c.id].findIndex(it => it.id === id);
     if (i >= 0) index[c.id] = i;
@@ -312,14 +312,11 @@ function renderStage() {
 }
 
 // --- alt kısım: kategori sekmeleri + küçük resim şeridi ---
-tabs.innerHTML = CATS.map((c, i) => `<button class="tab" data-i="${i}">${c.name}<small></small></button>`).join('')
+tabs.innerHTML = CATS.map((c, i) => `<button class="tab" data-i="${i}">${c.name}</button>`).join('')
   + '<button class="btn" id="del">Sil</button>';
 
 function renderTabs() {
-  tabs.querySelectorAll('.tab').forEach((b, i) => {
-    b.classList.toggle('on', i === active);
-    b.querySelector('small').textContent = items[CATS[i].id].length || '';
-  });
+  tabs.querySelectorAll('.tab').forEach((b, i) => b.classList.toggle('on', i === active));
   const c = CATS[active];
   $('del').hidden = !items[c.id][index[c.id]];
 }

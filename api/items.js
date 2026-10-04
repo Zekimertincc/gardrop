@@ -14,7 +14,7 @@ export default async function handler(req, res) {
   try {
     if (!authorize(req, res)) return;
 
-    // tek list çağrısı: kıyafetler + kayıtlı kombinler (kombin bilgisi dosya adında: outfits/zaman_tshirt_ceket_pantolon_ayakkabi)
+    // tek list çağrısı: kıyafetler + kayıtlı kombinler (kombin bilgisi dosya adında: outfits/zaman_tshirt_ceket_pantolon_ayakkabi_kazak)
     if (req.method === 'GET') {
       const { blobs } = await list({ limit: 1000 });
       blobs.sort((a, b) => new Date(a.uploadedAt) - new Date(b.uploadedAt));
@@ -25,8 +25,9 @@ export default async function handler(req, res) {
         .filter(b => b.pathname.startsWith('outfits/'))
         .reverse()
         .map(b => {
-          const [, tshirt, jacket, pants, shoes] = idOf(b.pathname).split('_');
-          return { url: b.url, parts: { tshirt, jacket: jacket === 'x' ? null : jacket, pants, shoes } };
+          const [, tshirt, jacket, pants, shoes, sweat] = idOf(b.pathname).split('_');
+          const opt = v => (!v || v === 'x' ? null : v); // eski kayıtlarda kazak alanı yok
+          return { url: b.url, parts: { tshirt, sweat: opt(sweat), jacket: opt(jacket), pants, shoes } };
         });
       return res.json({ items, outfits });
     }

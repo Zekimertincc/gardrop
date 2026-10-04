@@ -7,7 +7,8 @@ import crypto from 'node:crypto';
 const PORT = process.env.PORT || 3000;
 const DATA_DIR = process.env.DATA_DIR || './data';
 const PASSWORD = process.env.APP_PASSWORD;
-const CATS = ['tshirt', 'jacket', 'pants', 'shoes'];
+const CATS = ['tshirt', 'sweat', 'jacket', 'pants', 'shoes'];
+const OPTIONAL = ['sweat', 'jacket'];
 const ID_RE = /^[A-Za-z0-9-]+$/;
 const EXT = { 'image/png': 'png', 'image/jpeg': 'jpg' };
 const TYPES = { png: 'image/png', jpg: 'image/jpeg', svg: 'image/svg+xml' };
@@ -52,8 +53,9 @@ async function items(req, res, url) {
     return json(res, 200, {
       items: files.filter(f => !f.startsWith('outfit__')).map(f => ({ id: stripExt(f.split('__')[1]), url: '/files/' + f, cat: f.split('__')[0] })),
       outfits: files.filter(f => f.startsWith('outfit__')).reverse().map(f => {
-        const [, tshirt, jacket, pants, shoes] = outfitFields(f);
-        return { url: '/files/' + f, parts: { tshirt, jacket: jacket === 'x' ? null : jacket, pants, shoes } };
+        const [, tshirt, jacket, pants, shoes, sweat] = outfitFields(f);
+        const opt = v => (!v || v === 'x' ? null : v);
+        return { url: '/files/' + f, parts: { tshirt, sweat: opt(sweat), jacket: opt(jacket), pants, shoes } };
       }),
     });
   }
@@ -79,9 +81,9 @@ async function items(req, res, url) {
 async function outfits(req, res, url) {
   if (req.method === 'POST') {
     const p = JSON.parse((await readBody(req)).toString() || '{}');
-    const valid = CATS.every(c => (c === 'jacket' && p[c] === null) || ID_RE.test(p[c] || ''));
+    const valid = CATS.every(c => (OPTIONAL.includes(c) && (p[c] ?? null) === null) || ID_RE.test(p[c] || ''));
     if (!valid) return json(res, 400, { error: 'Geçersiz kombin' });
-    const name = `outfit__${Date.now()}_${p.tshirt}_${p.jacket ?? 'x'}_${p.pants}_${p.shoes}.txt`;
+    const name = `outfit__${Date.now()}_${p.tshirt}_${p.jacket ?? 'x'}_${p.pants}_${p.shoes}_${p.sweat ?? 'x'}.txt`;
     fs.writeFileSync(path.join(DATA_DIR, name), '1');
     return json(res, 200, { url: '/files/' + name });
   }

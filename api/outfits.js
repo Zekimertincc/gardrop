@@ -1,5 +1,5 @@
 import { put, del } from '@vercel/blob';
-import { CATS, ID_RE, authorize } from '../lib/server.js';
+import { CATS, OPTIONAL, ID_RE, authorize } from '../lib/server.js';
 
 export default async function handler(req, res) {
   try {
@@ -7,9 +7,9 @@ export default async function handler(req, res) {
 
     if (req.method === 'POST') {
       const p = req.body || {};
-      const valid = CATS.every(c => (c === 'jacket' && p[c] === null) || ID_RE.test(p[c] || ''));
+      const valid = CATS.every(c => (OPTIONAL.includes(c) && (p[c] ?? null) === null) || ID_RE.test(p[c] || ''));
       if (!valid) return res.status(400).json({ error: 'Geçersiz kombin' });
-      const pathname = `outfits/${Date.now()}_${p.tshirt}_${p.jacket ?? 'x'}_${p.pants}_${p.shoes}`;
+      const pathname = `outfits/${Date.now()}_${p.tshirt}_${p.jacket ?? 'x'}_${p.pants}_${p.shoes}_${p.sweat ?? 'x'}`;
       const blob = await put(pathname, '1', { access: 'public', contentType: 'text/plain', addRandomSuffix: false });
       return res.json({ url: blob.url });
     }
