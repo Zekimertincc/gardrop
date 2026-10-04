@@ -16,8 +16,9 @@
          padding:max(12px, env(safe-area-inset-top)) 12px max(12px, env(safe-area-inset-bottom)); }
   button { font:inherit; color:var(--ink); cursor:pointer; }
 
-  header { display:flex; align-items:center; justify-content:space-between; }
+  header { display:flex; align-items:center; justify-content:space-between; gap:8px; }
   h1 { font-size:18px; margin:0; }
+  .actions { display:flex; gap:6px; }
   .btn { border:1px solid var(--line); background:var(--card); border-radius:10px; padding:8px 12px; font-size:14px; }
 
   #login { display:flex; gap:8px; }
@@ -40,17 +41,34 @@
   .slot { flex:1; min-width:0; position:relative; touch-action:pan-y; user-select:none; -webkit-user-select:none; }
   .slot img { position:absolute; inset:0; width:100%; height:100%; object-fit:contain; padding:2px 0 8px; -webkit-user-drag:none; }
   .empty { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; text-align:center; color:var(--mute); font-size:14px; cursor:pointer; }
+  .empty.none { cursor:default; }
 
   .hint { color:var(--mute); font-size:12px; text-align:center; }
   @media (hover:none) { .hint .kb { display:none; } }
   @media (hover:hover) { .hint .touch { display:none; } }
   input[type=file] { display:none; }
+
+  /* kayıtlı kombinler */
+  #sheet { position:fixed; inset:0; z-index:10; background:rgba(0,0,0,.45); display:flex; align-items:flex-end; justify-content:center; }
+  #sheet[hidden] { display:none; }
+  .panel { width:100%; max-width:520px; max-height:85dvh; overflow:auto; background:var(--bg); border-radius:16px 16px 0 0; padding:12px 12px max(12px, env(safe-area-inset-bottom)); }
+  .phead { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+  .card { display:flex; align-items:center; gap:6px; background:var(--card); border:1px solid var(--line); border-radius:12px; padding:8px; margin-bottom:8px; cursor:pointer; }
+  .th { flex:1; min-width:0; aspect-ratio:1; border-radius:8px; overflow:hidden; position:relative; }
+  .th img { width:100%; height:100%; object-fit:contain; }
+  .th.none { border:1px dashed var(--line); display:flex; align-items:center; justify-content:center; color:var(--mute); font-size:12px; }
+  .xdel { border:0; background:none; color:var(--err); font-size:13px; padding:8px; }
+  .nothing { color:var(--mute); text-align:center; font-size:14px; padding:24px 0; }
 </style>
 </head>
 <body>
 <header>
   <h1>Outfit</h1>
-  <button class="btn" id="shuffle">🎲 Rastgele</button>
+  <div class="actions">
+    <button class="btn" id="save">💾 Kaydet</button>
+    <button class="btn" id="showOutfits" aria-label="Kayıtlı kombinler">📁 <span id="outfitCount">0</span></button>
+    <button class="btn" id="shuffle" aria-label="Rastgele kombin">🎲</button>
+  </div>
 </header>
 <form id="login" hidden>
   <input type="password" id="pw" placeholder="Şifre" autocomplete="current-password">
@@ -63,23 +81,32 @@
   <span class="touch">Sağa / sola kaydır</span>
 </div>
 
+<div id="sheet" hidden>
+  <div class="panel">
+    <div class="phead"><b>Kayıtlı kombinler</b><button class="btn" id="closeSheet">Kapat</button></div>
+    <div id="outfitList"></div>
+  </div>
+</div>
+
 <script>
+// optional: listede "hiçbiri" konumu da olur (index -1)
 const CATS = [
   { id: 'tshirt', name: 'T-shirt' },
-  { id: 'jacket', name: 'Ceket' },
+  { id: 'jacket', name: 'Ceket', optional: true },
   { id: 'pants',  name: 'Pantolon' },
   { id: 'shoes',  name: 'Ayakkabı' },
 ];
 
 const $ = id => document.getElementById(id);
-const msg = $('msg'), loginForm = $('login');
+const msg = $('msg'), loginForm = $('login'), sheet = $('sheet');
 const showMsg = (text = '', isError = false) => { msg.textContent = text; msg.className = isError ? 'err' : ''; };
+const minIndex = c => c.optional ? -1 : 0;
 
 // --- api ---
 const getPw = () => (localStorage.getItem('pw') || '').trim();
 
-async function api(path = '', opts = {}) {
-  const r = await fetch('/api/items' + path, { ...opts, headers: { 'x-password': getPw(), ...opts.headers } });
+async function api(url, opts = {}) {
+  const r = await fetch(url, { ...opts, headers: { 'x-password': getPw(), ...opts.headers } });
   if (r.status === 401) {
     loginForm.hidden = false;
     throw new Error(getPw() ? 'Şifre yanlış' : 'Şifre gerekli');
@@ -114,14 +141,18 @@ async function shrink(file, max = 1280) {
 }
 
 // --- state ---
-const items = Object.fromEntries(CATS.map(c => [c.id, []])); // [{url}]
+const items = Object.fromEntries(CATS.map(c => [c.id, []])); // [{id, url}]
 const index = Object.fromEntries(CATS.map(c => [c.id, 0]));
+let outfits = []; // [{url, parts: {tshirt: id, jacket: id|null, ...}}]
 let active = 0;
 
 const load = safe(async () => {
+  const data = await api('/api/items');
   CATS.forEach(c => { items[c.id] = []; });
-  for (const it of await api()) items[it.cat]?.push({ url: it.url });
+  for (const it of data.items) items[it.cat]?.push({ id: it.id, url: it.url });
+  outfits = data.outfits;
   render();
+  renderOutfits();
 });
 
 const addFiles = safe(async (cat, files) => {
@@ -129,8 +160,8 @@ const addFiles = safe(async (cat, files) => {
   for (const [n, f] of images.entries()) {
     showMsg(`Yükleniyor ${n + 1}/${images.length}…`);
     const blob = await shrink(f);
-    const it = await api('?cat=' + cat, { method: 'POST', body: blob });
-    items[cat].push({ url: it.url });
+    const it = await api('/api/items?cat=' + cat, { method: 'POST', body: blob });
+    items[cat].push({ id: it.id, url: it.url });
     index[cat] = items[cat].length - 1;
     render();
   }
@@ -139,18 +170,82 @@ const addFiles = safe(async (cat, files) => {
 
 const remove = safe(async cat => {
   const it = items[cat][index[cat]];
-  if (!it || !confirm('Bu kıyafet silinsin mi?')) return;
-  await api('?url=' + encodeURIComponent(it.url), { method: 'DELETE' });
+  if (!it || !confirm('Bu kıyafet silinsin mi? (İçeren kayıtlı kombinler de silinir)')) return;
+  await api('/api/items?url=' + encodeURIComponent(it.url), { method: 'DELETE' });
   items[cat].splice(index[cat], 1);
   index[cat] = Math.max(0, index[cat] - 1);
+  outfits = outfits.filter(o => !Object.values(o.parts).includes(it.id));
   render();
+  renderOutfits();
 });
 
-function step(cat, d) {
-  const n = items[cat].length;
-  if (n) index[cat] = (index[cat] + d + n) % n;
+function step(catId, d) {
+  const lo = minIndex(CATS.find(c => c.id === catId));
+  const span = items[catId].length - lo; // seçilebilir konum sayısı
+  if (span > 0 && items[catId].length) index[catId] = lo + (((index[catId] - lo + d) % span) + span) % span;
   render();
 }
+
+// --- kayıtlı kombinler ---
+const saveOutfit = safe(async () => {
+  const parts = {};
+  for (const c of CATS) {
+    const it = items[c.id][index[c.id]];
+    if (!it && !c.optional) throw new Error(`${c.name} bloğunda kıyafet yok`);
+    parts[c.id] = it ? it.id : null;
+  }
+  const key = o => CATS.map(c => o[c.id]).join();
+  if (outfits.some(o => key(o.parts) === key(parts))) throw new Error('Bu kombin zaten kayıtlı');
+  const saved = await api('/api/outfits', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(parts) });
+  outfits.unshift({ url: saved.url, parts });
+  renderOutfits();
+  const text = 'Kombin kaydedildi ✓';
+  showMsg(text);
+  setTimeout(() => { if (msg.textContent === text) showMsg(); }, 2000);
+});
+
+function applyOutfit(o) {
+  for (const c of CATS) {
+    const id = o.parts[c.id];
+    if (id === null) { index[c.id] = -1; continue; }
+    const i = items[c.id].findIndex(it => it.id === id);
+    if (i >= 0) index[c.id] = i;
+  }
+  render();
+  sheet.hidden = true;
+}
+
+const removeOutfit = safe(async o => {
+  if (!confirm('Bu kombin silinsin mi?')) return;
+  await api('/api/outfits?url=' + encodeURIComponent(o.url), { method: 'DELETE' });
+  outfits = outfits.filter(x => x !== o);
+  renderOutfits();
+});
+
+function renderOutfits() {
+  $('outfitCount').textContent = outfits.length;
+  const list = $('outfitList');
+  if (!outfits.length) { list.innerHTML = '<div class="nothing">Henüz kayıtlı kombin yok. Beğendiğin kombini 💾 Kaydet ile ekle.</div>'; return; }
+  list.innerHTML = outfits.map((o, i) => `
+    <div class="card" data-i="${i}">
+      ${CATS.map(c => {
+        const it = items[c.id].find(x => x.id === o.parts[c.id]);
+        return it ? `<div class="th"><img src="${it.url}" alt="${c.name}"></div>` : `<div class="th none">yok</div>`;
+      }).join('')}
+      <button class="xdel" data-del="${i}">Sil</button>
+    </div>`).join('');
+}
+
+$('outfitList').onclick = e => {
+  const del = e.target.closest('[data-del]');
+  if (del) return removeOutfit(outfits[+del.dataset.del]);
+  const card = e.target.closest('.card');
+  if (card) applyOutfit(outfits[+card.dataset.i]);
+};
+$('showOutfits').onclick = () => { sheet.hidden = false; };
+$('closeSheet').onclick = () => { sheet.hidden = true; };
+sheet.onclick = e => { if (e.target === sheet) sheet.hidden = true; };
+$('save').onclick = saveOutfit;
 
 // --- ui ---
 const stack = $('stack');
@@ -204,18 +299,22 @@ function render() {
     block.classList.toggle('active', i === active);
     block.querySelector('.slot').innerHTML = it
       ? `<img src="${it.url}" alt="${c.name}" draggable="false">`
-      : `<div class="empty">Boş. Dokun, foto ekle</div>`;
-    block.querySelector('.count').textContent = list.length ? `${index[c.id] + 1}/${list.length}` : '';
+      : list.length ? `<div class="empty none">${c.name} yok</div>` : `<div class="empty">Boş. Dokun, foto ekle</div>`;
+    block.querySelector('.count').textContent = list.length ? `${it ? index[c.id] + 1 : '–'}/${list.length}` : '';
     block.querySelector('.del').hidden = !it;
   });
 }
 
 $('shuffle').onclick = () => {
-  CATS.forEach(c => { const n = items[c.id].length; if (n) index[c.id] = Math.floor(Math.random() * n); });
+  CATS.forEach(c => {
+    const n = items[c.id].length, lo = minIndex(c);
+    if (n) index[c.id] = lo + Math.floor(Math.random() * (n - lo));
+  });
   render();
 };
 
 document.addEventListener('keydown', e => {
+  if (!sheet.hidden) { if (e.key === 'Escape') sheet.hidden = true; return; }
   if (e.target.tagName === 'INPUT') return;
   if (e.key === 'ArrowLeft') step(CATS[active].id, -1);
   else if (e.key === 'ArrowRight') step(CATS[active].id, 1);
@@ -233,6 +332,7 @@ loginForm.onsubmit = e => {
 };
 
 render();
+renderOutfits();
 load();
 </script>
 </body>
