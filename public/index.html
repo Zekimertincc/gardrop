@@ -2,38 +2,66 @@
 <html lang="tr">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#f5f5f4">
 <title>Outfit</title>
 <style>
-  :root { --bg:#f5f5f4; --card:#fff; --ink:#1c1917; --mute:#a8a29e; --line:#e7e5e4; --accent:#1c1917; }
+  :root { --bg:#f5f5f4; --card:#fff; --ink:#1c1917; --mute:#78716c; --line:#e7e5e4; --accent:#1c1917; --err:#dc2626; }
   @media (prefers-color-scheme: dark) {
-    :root { --bg:#141413; --card:#1f1f1d; --ink:#f5f5f4; --mute:#78716c; --line:#2e2e2b; --accent:#f5f5f4; }
+    :root { --bg:#141413; --card:#1f1f1d; --ink:#f5f5f4; --mute:#a8a29e; --line:#2e2e2b; --accent:#f5f5f4; --err:#f87171; }
   }
-  * { box-sizing:border-box; }
-  body { margin:0; background:var(--bg); color:var(--ink); font:16px system-ui,sans-serif; display:flex; flex-direction:column; align-items:center; padding:16px; min-height:100vh; }
-  h1 { font-size:18px; margin:4px 0 12px; }
-  #stack { width:100%; max-width:420px; display:flex; flex-direction:column; gap:10px; }
-  .row { display:flex; align-items:center; gap:8px; }
-  .row.active .slot { outline:2px solid var(--accent); }
-  .arrow { border:0; background:none; color:var(--ink); font-size:28px; cursor:pointer; padding:8px; }
-  .slot { flex:1; height:150px; background:var(--card); border:1px solid var(--line); border-radius:12px; display:flex; align-items:center; justify-content:center; position:relative; overflow:hidden; }
-  .view { width:100%; height:100%; display:flex; align-items:center; justify-content:center; padding:18px 8px; }
-  .slot img { max-width:100%; max-height:100%; object-fit:contain; }
-  .slot .empty { color:var(--mute); font-size:14px; text-align:center; padding:8px; }
-  .label { position:absolute; top:6px; left:8px; font-size:11px; color:var(--mute); text-transform:uppercase; letter-spacing:.05em; }
-  .count { position:absolute; top:6px; right:8px; font-size:11px; color:var(--mute); }
-  .tools { position:absolute; bottom:6px; right:6px; display:flex; gap:6px; }
-  .tools button, .bar button { border:1px solid var(--line); background:var(--card); color:var(--ink); border-radius:8px; padding:5px 10px; font-size:13px; cursor:pointer; }
-  .bar { margin-top:14px; display:flex; gap:8px; }
-  .hint { margin-top:10px; color:var(--mute); font-size:12px; text-align:center; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html { background:var(--bg); }
+  body { margin:0 auto; max-width:520px; height:100dvh; display:flex; flex-direction:column; gap:8px; color:var(--ink); font:16px system-ui,sans-serif;
+         padding:max(12px, env(safe-area-inset-top)) 12px max(12px, env(safe-area-inset-bottom)); }
+  button { font:inherit; color:var(--ink); cursor:pointer; }
+
+  header { display:flex; align-items:center; justify-content:space-between; }
+  h1 { font-size:18px; margin:0; }
+  .btn { border:1px solid var(--line); background:var(--card); border-radius:10px; padding:8px 12px; font-size:14px; }
+
+  #login { display:flex; gap:8px; }
+  #login[hidden] { display:none; }
+  #login input { flex:1; min-width:0; padding:10px 12px; border:1px solid var(--line); border-radius:10px; background:var(--card); color:var(--ink); font-size:16px; }
+  #login button { border:0; background:var(--accent); color:var(--bg); border-radius:10px; padding:0 16px; }
+  #msg { font-size:13px; color:var(--mute); text-align:center; }
+  #msg:empty { display:none; }
+  #msg.err { color:var(--err); }
+
+  #stack { flex:1; min-height:0; display:flex; flex-direction:column; gap:8px; }
+  .block { flex:1; min-height:0; display:flex; flex-direction:column; background:var(--card); border:1px solid var(--line); border-radius:14px; overflow:hidden; }
+  .block.active { border-color:var(--accent); }
+  .top { display:flex; align-items:center; gap:6px; padding:2px 6px 0 12px; font-size:12px; color:var(--mute); }
+  .name { flex:1; text-transform:uppercase; letter-spacing:.05em; }
+  .top button { border:0; background:none; font-size:13px; padding:8px 10px; border-radius:8px; }
+  .top .del { color:var(--err); }
+  .mid { flex:1; min-height:0; display:flex; }
+  .arrow { width:44px; border:0; background:none; font-size:28px; color:var(--ink); }
+  .slot { flex:1; min-width:0; position:relative; touch-action:pan-y; user-select:none; -webkit-user-select:none; }
+  .slot img { position:absolute; inset:0; width:100%; height:100%; object-fit:contain; padding:2px 0 8px; -webkit-user-drag:none; }
+  .empty { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; text-align:center; color:var(--mute); font-size:14px; cursor:pointer; }
+
+  .hint { color:var(--mute); font-size:12px; text-align:center; }
+  @media (hover:none) { .hint .kb { display:none; } }
+  @media (hover:hover) { .hint .touch { display:none; } }
   input[type=file] { display:none; }
 </style>
 </head>
 <body>
-<h1>Outfit</h1>
+<header>
+  <h1>Outfit</h1>
+  <button class="btn" id="shuffle">🎲 Rastgele</button>
+</header>
+<form id="login" hidden>
+  <input type="password" id="pw" placeholder="Şifre" autocomplete="current-password">
+  <button>Giriş</button>
+</form>
+<div id="msg"></div>
 <div id="stack"></div>
-<div class="bar"><button id="shuffle">🎲 Rastgele</button></div>
-<div class="hint">↑ ↓ blok seç · ← → kıyafet değiştir · foto sürükle-bırak da olur</div>
+<div class="hint">
+  <span class="kb">↑ ↓ blok seç · ← → kıyafet değiştir</span>
+  <span class="touch">Sağa / sola kaydır</span>
+</div>
 
 <script>
 const CATS = [
@@ -43,28 +71,45 @@ const CATS = [
   { id: 'shoes',  name: 'Ayakkabı' },
 ];
 
+const $ = id => document.getElementById(id);
+const msg = $('msg'), loginForm = $('login');
+const showMsg = (text = '', isError = false) => { msg.textContent = text; msg.className = isError ? 'err' : ''; };
+
 // --- api ---
-const getPw = () => localStorage.getItem('pw') || '';
+const getPw = () => (localStorage.getItem('pw') || '').trim();
+
 async function api(path = '', opts = {}) {
   const r = await fetch('/api/items' + path, { ...opts, headers: { 'x-password': getPw(), ...opts.headers } });
   if (r.status === 401) {
-    const pw = prompt('Şifre:');
-    if (pw === null) throw new Error('şifre yok');
-    localStorage.setItem('pw', pw);
-    return api(path, opts);
+    loginForm.hidden = false;
+    throw new Error(getPw() ? 'Şifre yanlış' : 'Şifre gerekli');
   }
-  if (!r.ok) throw new Error('API hata ' + r.status);
+  if (!r.ok) {
+    const body = await r.json().catch(() => ({}));
+    throw new Error(body.error || 'Sunucu hatası (' + r.status + ')');
+  }
   return r.json();
 }
 
-// foto telefon çözünürlüğünde gelir; küçültüp jpeg yap (hızlı yükleme + Vercel body limiti)
-async function shrink(file, max = 1200) {
-  const bmp = await createImageBitmap(file);
+// hata olursa ekranda göster, sessiz kalma
+const safe = fn => async (...args) => {
+  try { showMsg(); await fn(...args); } catch (e) { showMsg(e.message, true); }
+};
+
+// telefon fotosu büyük gelir; küçültüp jpeg yap (hızlı yükleme + Vercel 4.5MB body limiti)
+async function shrink(file, max = 1280) {
+  let bmp;
+  try { bmp = await createImageBitmap(file); }
+  catch { throw new Error('Foto okunamadı. JPG veya PNG dene.'); }
   const k = Math.min(1, max / Math.max(bmp.width, bmp.height));
   const c = document.createElement('canvas');
   c.width = Math.round(bmp.width * k);
   c.height = Math.round(bmp.height * k);
-  c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+  const g = c.getContext('2d');
+  g.fillStyle = '#fff'; // şeffaf PNG jpeg'de siyah olmasın
+  g.fillRect(0, 0, c.width, c.height);
+  g.drawImage(bmp, 0, 0, c.width, c.height);
+  bmp.close();
   return new Promise(ok => c.toBlob(ok, 'image/jpeg', 0.85));
 }
 
@@ -73,30 +118,33 @@ const items = Object.fromEntries(CATS.map(c => [c.id, []])); // [{url}]
 const index = Object.fromEntries(CATS.map(c => [c.id, 0]));
 let active = 0;
 
-async function load() {
+const load = safe(async () => {
+  CATS.forEach(c => { items[c.id] = []; });
   for (const it of await api()) items[it.cat]?.push({ url: it.url });
   render();
-}
+});
 
-async function addFiles(cat, files) {
-  for (const f of files) {
-    if (!f.type.startsWith('image/')) continue;
+const addFiles = safe(async (cat, files) => {
+  const images = [...files].filter(f => f.type.startsWith('image/'));
+  for (const [n, f] of images.entries()) {
+    showMsg(`Yükleniyor ${n + 1}/${images.length}…`);
     const blob = await shrink(f);
     const it = await api('?cat=' + cat, { method: 'POST', body: blob });
     items[cat].push({ url: it.url });
     index[cat] = items[cat].length - 1;
     render();
   }
-}
+  showMsg();
+});
 
-async function remove(cat) {
+const remove = safe(async cat => {
   const it = items[cat][index[cat]];
-  if (!it) return;
+  if (!it || !confirm('Bu kıyafet silinsin mi?')) return;
   await api('?url=' + encodeURIComponent(it.url), { method: 'DELETE' });
   items[cat].splice(index[cat], 1);
   index[cat] = Math.max(0, index[cat] - 1);
   render();
-}
+});
 
 function step(cat, d) {
   const n = items[cat].length;
@@ -105,48 +153,70 @@ function step(cat, d) {
 }
 
 // --- ui ---
-const stack = document.getElementById('stack');
+const stack = $('stack');
 CATS.forEach((c, i) => {
-  const row = document.createElement('div');
-  row.className = 'row';
-  row.innerHTML = `
-    <button class="arrow" data-d="-1">‹</button>
-    <div class="slot">
-      <span class="label">${c.name}</span><span class="count"></span>
-      <div class="view"></div>
-      <div class="tools">
-        <button class="add">+ Foto</button>
-        <button class="del">Sil</button>
-      </div>
-      <input type="file" accept="image/*" multiple>
+  const block = document.createElement('div');
+  block.className = 'block';
+  block.innerHTML = `
+    <div class="top">
+      <span class="name">${c.name}</span><span class="count"></span>
+      <button class="add">+ Foto</button>
+      <button class="del">Sil</button>
     </div>
-    <button class="arrow" data-d="1">›</button>`;
-  const input = row.querySelector('input');
-  row.querySelector('.add').onclick = () => input.click();
-  row.querySelector('.del').onclick = () => remove(c.id);
-  input.onchange = () => { addFiles(c.id, input.files); input.value = ''; };
-  row.querySelectorAll('.arrow').forEach(b => b.onclick = () => { active = i; step(c.id, +b.dataset.d); });
-  row.addEventListener('mousedown', () => { active = i; render(); });
-  row.addEventListener('dragover', e => e.preventDefault());
-  row.addEventListener('drop', e => { e.preventDefault(); addFiles(c.id, e.dataTransfer.files); });
-  stack.appendChild(row);
+    <div class="mid">
+      <button class="arrow" data-d="-1" aria-label="Önceki">‹</button>
+      <div class="slot"></div>
+      <button class="arrow" data-d="1" aria-label="Sonraki">›</button>
+    </div>
+    <input type="file" accept="image/*" multiple>`;
+
+  const input = block.querySelector('input');
+  const slot = block.querySelector('.slot');
+  block.querySelector('.add').onclick = () => input.click();
+  block.querySelector('.del').onclick = () => remove(c.id);
+  input.onchange = () => { addFiles(c.id, input.files).finally(() => { input.value = ''; }); };
+  block.querySelectorAll('.arrow').forEach(b => b.onclick = () => { active = i; step(c.id, +b.dataset.d); });
+  block.addEventListener('pointerdown', () => { if (active !== i) { active = i; render(); } });
+
+  // boşken dokununca foto seç
+  slot.onclick = () => { if (!items[c.id].length) input.click(); };
+
+  // kaydırarak geçiş
+  let x0 = null;
+  slot.addEventListener('touchstart', e => { x0 = e.touches[0].clientX; }, { passive: true });
+  slot.addEventListener('touchend', e => {
+    if (x0 === null) return;
+    const dx = e.changedTouches[0].clientX - x0;
+    x0 = null;
+    if (Math.abs(dx) > 40) step(c.id, dx < 0 ? 1 : -1);
+  });
+
+  // masaüstünde sürükle-bırak
+  block.addEventListener('dragover', e => e.preventDefault());
+  block.addEventListener('drop', e => { e.preventDefault(); addFiles(c.id, e.dataTransfer.files); });
+
+  stack.appendChild(block);
 });
 
 function render() {
-  [...stack.children].forEach((row, i) => {
+  [...stack.children].forEach((block, i) => {
     const c = CATS[i], list = items[c.id], it = list[index[c.id]];
-    row.classList.toggle('active', i === active);
-    row.querySelector('.view').innerHTML = it ? `<img src="${it.url}" alt="${c.name}">` : `<div class="empty">Boş — + Foto ile ekle</div>`;
-    row.querySelector('.count').textContent = list.length ? `${index[c.id] + 1}/${list.length}` : '';
+    block.classList.toggle('active', i === active);
+    block.querySelector('.slot').innerHTML = it
+      ? `<img src="${it.url}" alt="${c.name}" draggable="false">`
+      : `<div class="empty">Boş. Dokun, foto ekle</div>`;
+    block.querySelector('.count').textContent = list.length ? `${index[c.id] + 1}/${list.length}` : '';
+    block.querySelector('.del').hidden = !it;
   });
 }
 
-document.getElementById('shuffle').onclick = () => {
+$('shuffle').onclick = () => {
   CATS.forEach(c => { const n = items[c.id].length; if (n) index[c.id] = Math.floor(Math.random() * n); });
   render();
 };
 
 document.addEventListener('keydown', e => {
+  if (e.target.tagName === 'INPUT') return;
   if (e.key === 'ArrowLeft') step(CATS[active].id, -1);
   else if (e.key === 'ArrowRight') step(CATS[active].id, 1);
   else if (e.key === 'ArrowUp') { active = (active + CATS.length - 1) % CATS.length; render(); }
@@ -155,6 +225,14 @@ document.addEventListener('keydown', e => {
   e.preventDefault();
 });
 
+loginForm.onsubmit = e => {
+  e.preventDefault();
+  localStorage.setItem('pw', $('pw').value.trim());
+  loginForm.hidden = true;
+  load();
+};
+
+render();
 load();
 </script>
 </body>
