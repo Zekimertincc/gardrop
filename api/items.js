@@ -14,7 +14,7 @@ export default async function handler(req, res) {
     const password = (process.env.APP_PASSWORD || '').trim();
     if (!password) return res.status(500).json({ error: 'Sunucuda APP_PASSWORD tanımlı değil (Vercel env ekle + redeploy)' });
     if (req.headers['x-password'] !== password) return res.status(401).json({ error: 'unauthorized' });
-    if (!process.env.BLOB_READ_WRITE_TOKEN) return res.status(500).json({ error: 'Blob projeye bağlı değil (BLOB_READ_WRITE_TOKEN yok)' });
+    if (!process.env.BLOB_READ_WRITE_TOKEN && !process.env.BLOB_STORE_ID) return res.status(500).json({ error: 'Blob projeye bağlı değil (BLOB_STORE_ID yok)' });
 
     if (req.method === 'GET') {
       const { blobs } = await list({ prefix: 'wardrobe/', limit: 1000 });
