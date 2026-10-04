@@ -1,0 +1,7 @@
+{
+  "name": "outfit",
+  "private": true,
+  "type": "module",
+  "scripts": { "dev": "APP_PASSWORD=demo node dev.js" },
+  "dependencies": { "@vercel/blob": "^1.0.0" }
+}

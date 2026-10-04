@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Outfit</title>
+<style>
+  :root { --bg:#f5f5f4; --card:#fff; --ink:#1c1917; --mute:#a8a29e; --line:#e7e5e4; --accent:#1c1917; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#141413; --card:#1f1f1d; --ink:#f5f5f4; --mute:#78716c; --line:#2e2e2b; --accent:#f5f5f4; }
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:16px system-ui,sans-serif; display:flex; flex-direction:column; align-items:center; padding:16px; min-height:100vh; }
+  h1 { font-size:18px; margin:4px 0 12px; }
+  #stack { width:100%; max-width:420px; display:flex; flex-direction:column; gap:10px; }
+  .row { display:flex; align-items:center; gap:8px; }
+  .row.active .slot { outline:2px solid var(--accent); }
+  .arrow { border:0; background:none; color:var(--ink); font-size:28px; cursor:pointer; padding:8px; }
+  .slot { flex:1; height:150px; background:var(--card); border:1px solid var(--line); border-radius:12px; display:flex; align-items:center; justify-content:center; position:relative; overflow:hidden; }
+  .view { width:100%; height:100%; display:flex; align-items:center; justify-content:center; padding:18px 8px; }
+  .slot img { max-width:100%; max-height:100%; object-fit:contain; }
+  .slot .empty { color:var(--mute); font-size:14px; text-align:center; padding:8px; }
+  .label { position:absolute; top:6px; left:8px; font-size:11px; color:var(--mute); text-transform:uppercase; letter-spacing:.05em; }
+  .count { position:absolute; top:6px; right:8px; font-size:11px; color:var(--mute); }
+  .tools { position:absolute; bottom:6px; right:6px; display:flex; gap:6px; }
+  .tools button, .bar button { border:1px solid var(--line); background:var(--card); color:var(--ink); border-radius:8px; padding:5px 10px; font-size:13px; cursor:pointer; }
+  .bar { margin-top:14px; display:flex; gap:8px; }
+  .hint { margin-top:10px; color:var(--mute); font-size:12px; text-align:center; }
+  input[type=file] { display:none; }
+</style>
+</head>
+<body>
+<h1>Outfit</h1>
+<div id="stack"></div>
+<div class="bar"><button id="shuffle">🎲 Rastgele</button></div>
+<div class="hint">↑ ↓ blok seç · ← → kıyafet değiştir · foto sürükle-bırak da olur</div>
+
+<script>
+const CATS = [
+  { id: 'tshirt', name: 'T-shirt' },
+  { id: 'jacket', name: 'Ceket' },
+  { id: 'pants',  name: 'Pantolon' },
+  { id: 'shoes',  name: 'Ayakkabı' },
+];
+
+// --- api ---
+const getPw = () => localStorage.getItem('pw') || '';
+async function api(path = '', opts = {}) {
+  const r = await fetch('/api/items' + path, { ...opts, headers: { 'x-password': getPw(), ...opts.headers } });
+  if (r.status === 401) {
+    const pw = prompt('Şifre:');
+    if (pw === null) throw new Error('şifre yok');
+    localStorage.setItem('pw', pw);
+    return api(path, opts);
+  }
+  if (!r.ok) throw new Error('API hata ' + r.status);
+  return r.json();
+}
+
+// foto telefon çözünürlüğünde gelir; küçültüp jpeg yap (hızlı yükleme + Vercel body limiti)
+async function shrink(file, max = 1200) {
+  const bmp = await createImageBitmap(file);
+  const k = Math.min(1, max / Math.max(bmp.width, bmp.height));
+  const c = document.createElement('canvas');
+  c.width = Math.round(bmp.width * k);
+  c.height = Math.round(bmp.height * k);
+  c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+  return new Promise(ok => c.toBlob(ok, 'image/jpeg', 0.85));
+}
+
+// --- state ---
+const items = Object.fromEntries(CATS.map(c => [c.id, []])); // [{url}]
+const index = Object.fromEntries(CATS.map(c => [c.id, 0]));
+let active = 0;
+
+async function load() {
+  for (const it of await api()) items[it.cat]?.push({ url: it.url });
+  render();
+}
+
+async function addFiles(cat, files) {
+  for (const f of files) {
+    if (!f.type.startsWith('image/')) continue;
+    const blob = await shrink(f);
+    const it = await api('?cat=' + cat, { method: 'POST', body: blob });
+    items[cat].push({ url: it.url });
+    index[cat] = items[cat].length - 1;
+    render();
+  }
+}
+
+async function remove(cat) {
+  const it = items[cat][index[cat]];
+  if (!it) return;
+  await api('?url=' + encodeURIComponent(it.url), { method: 'DELETE' });
+  items[cat].splice(index[cat], 1);
+  index[cat] = Math.max(0, index[cat] - 1);
+  render();
+}
+
+function step(cat, d) {
+  const n = items[cat].length;
+  if (n) index[cat] = (index[cat] + d + n) % n;
+  render();
+}
+
+// --- ui ---
+const stack = document.getElementById('stack');
+CATS.forEach((c, i) => {
+  const row = document.createElement('div');
+  row.className = 'row';
+  row.innerHTML = `
+    <button class="arrow" data-d="-1">‹</button>
+    <div class="slot">
+      <span class="label">${c.name}</span><span class="count"></span>
+      <div class="view"></div>
+      <div class="tools">
+        <button class="add">+ Foto</button>
+        <button class="del">Sil</button>
+      </div>
+      <input type="file" accept="image/*" multiple>
+    </div>
+    <button class="arrow" data-d="1">›</button>`;
+  const input = row.querySelector('input');
+  row.querySelector('.add').onclick = () => input.click();
+  row.querySelector('.del').onclick = () => remove(c.id);
+  input.onchange = () => { addFiles(c.id, input.files); input.value = ''; };
+  row.querySelectorAll('.arrow').forEach(b => b.onclick = () => { active = i; step(c.id, +b.dataset.d); });
+  row.addEventListener('mousedown', () => { active = i; render(); });
+  row.addEventListener('dragover', e => e.preventDefault());
+  row.addEventListener('drop', e => { e.preventDefault(); addFiles(c.id, e.dataTransfer.files); });
+  stack.appendChild(row);
+});
+
+function render() {
+  [...stack.children].forEach((row, i) => {
+    const c = CATS[i], list = items[c.id], it = list[index[c.id]];
+    row.classList.toggle('active', i === active);
+    row.querySelector('.view').innerHTML = it ? `<img src="${it.url}" alt="${c.name}">` : `<div class="empty">Boş — + Foto ile ekle</div>`;
+    row.querySelector('.count').textContent = list.length ? `${index[c.id] + 1}/${list.length}` : '';
+  });
+}
+
+document.getElementById('shuffle').onclick = () => {
+  CATS.forEach(c => { const n = items[c.id].length; if (n) index[c.id] = Math.floor(Math.random() * n); });
+  render();
+};
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowLeft') step(CATS[active].id, -1);
+  else if (e.key === 'ArrowRight') step(CATS[active].id, 1);
+  else if (e.key === 'ArrowUp') { active = (active + CATS.length - 1) % CATS.length; render(); }
+  else if (e.key === 'ArrowDown') { active = (active + 1) % CATS.length; render(); }
+  else return;
+  e.preventDefault();
+});
+
+load();
+</script>
+</body>
+</html>
