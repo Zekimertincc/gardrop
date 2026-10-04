@@ -9,6 +9,8 @@ const DATA_DIR = process.env.DATA_DIR || './data';
 const PASSWORD = process.env.APP_PASSWORD;
 const CATS = ['tshirt', 'jacket', 'pants', 'shoes'];
 const ID_RE = /^[A-Za-z0-9-]+$/;
+const EXT = { 'image/png': 'png', 'image/jpeg': 'jpg' };
+const TYPES = { png: 'image/png', jpg: 'image/jpeg', svg: 'image/svg+xml' };
 const MAX_BYTES = 10 * 1024 * 1024;
 
 if (!PASSWORD) { console.error('APP_PASSWORD env değişkeni gerekli'); process.exit(1); }
@@ -58,9 +60,11 @@ async function items(req, res, url) {
   if (req.method === 'POST') {
     const cat = url.searchParams.get('cat');
     if (!CATS.includes(cat)) return json(res, 400, { error: 'bad category' });
+    const ext = EXT[(req.headers['content-type'] || '').split(';')[0]];
+    if (!ext) return json(res, 400, { error: 'Sadece PNG veya JPEG kabul edilir' });
     const id = crypto.randomUUID();
-    fs.writeFileSync(path.join(DATA_DIR, `${cat}__${id}.jpg`), await readBody(req));
-    return json(res, 200, { id, url: `/files/${cat}__${id}.jpg`, cat });
+    fs.writeFileSync(path.join(DATA_DIR, `${cat}__${id}.${ext}`), await readBody(req));
+    return json(res, 200, { id, url: `/files/${cat}__${id}.${ext}`, cat });
   }
   if (req.method === 'DELETE') {
     const file = path.basename(url.searchParams.get('url') || '');
@@ -99,7 +103,7 @@ http.createServer(async (req, res) => {
     }
     if (url.pathname.startsWith('/files/')) { // img etiketi header gönderemez; dosya adları tahmin edilemez (uuid)
       const f = path.join(DATA_DIR, path.basename(url.pathname));
-      return fs.existsSync(f) ? send(res, 200, fs.readFileSync(f), 'image/jpeg') : send(res, 404);
+      return fs.existsSync(f) ? send(res, 200, fs.readFileSync(f), TYPES[path.extname(f).slice(1)] || 'application/octet-stream') : send(res, 404);
     }
     send(res, 200, fs.readFileSync('public/index.html'), 'text/html; charset=utf-8');
   } catch (e) {

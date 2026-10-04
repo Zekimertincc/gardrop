@@ -1,6 +1,8 @@
 import { put, list, del } from '@vercel/blob';
 import { CATS, authorize, idOf } from '../lib/server.js';
 
+const EXT = { 'image/png': 'png', 'image/jpeg': 'jpg' };
+
 async function readBody(req) {
   if (Buffer.isBuffer(req.body)) return req.body; // Vercel bazı content-type'larda body'yi kendisi okur
   const chunks = [];
@@ -32,12 +34,15 @@ export default async function handler(req, res) {
     if (req.method === 'POST') {
       const cat = req.query.cat;
       if (!CATS.includes(cat)) return res.status(400).json({ error: 'bad category' });
+      const type = (req.headers['content-type'] || '').split(';')[0];
+      const ext = EXT[type];
+      if (!ext) return res.status(400).json({ error: 'Sadece PNG veya JPEG kabul edilir' });
       const body = await readBody(req);
       if (!body.length) return res.status(400).json({ error: 'Boş dosya geldi' });
       const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-      const blob = await put(`wardrobe/${cat}/${id}.jpg`, body, {
+      const blob = await put(`wardrobe/${cat}/${id}.${ext}`, body, {
         access: 'public',
-        contentType: 'image/jpeg',
+        contentType: type,
         addRandomSuffix: false,
       });
       return res.json({ id, url: blob.url, cat });
